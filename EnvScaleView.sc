@@ -22,9 +22,11 @@ EnvScaleView {
 	init { arg parent,bounds,env;
 		var prevPoint,brPtModeMenu,breakPointMode,ctlKeyDown = false,remNumGridLines,scaleCount = 0,scaleRespCount = 0,onBreakPoint,onCurvePoint,dbreakPointXCoords,initBreakPointTime,dinitBreakPointTime;
 
+		this.env_(env,false);
+
 		uI = 8;
 		numGridLinesPerUnit = 8;
-		timeStep = unitStep[\time][uI];
+		this.prTimeStep_(unitStep[\time][uI]);
 		timeIncr = timeStep/numGridLinesPerUnit;
 
 		loopStartNode = 1;
@@ -39,9 +41,9 @@ EnvScaleView {
 		this.minHorzGridDist_(horzGridDist*0.5,false);
 		/*selGridLineCoord = ((bounds.width/horzGridDist).div(2)*horzGridDist)@(bounds.width/horzGridDist/numGridLinesPerUnit*0.5*unitStep[uI][\time]);
 		selGridLineCoord.postln;*/
-		selGridLineCoord = 320@0.4;
+		this.prSelGridLineCoord_(320@0.4);
 		remNumGridLines = 0;
-		vhorzGridDist = horzGridDist;
+		this.prVhorzGridDist_(horzGridDist);
 
 		// initialize axes vars
 		this.showHorzAxis_(true,false);
@@ -160,7 +162,7 @@ EnvScaleView {
 			// calculate new selGridLineCoord
 			(x != selGridLineCoord.x).if {
 				n = ((x - selGridLineCoord.x)/vhorzGridDist).round(1);
-				selGridLineCoord = (n*vhorzGridDist + selGridLineCoord.x)@(n*timeIncr + selGridLineCoord.y).round(timeIncr)
+				this.prSelGridLineCoord_((n*vhorzGridDist + selGridLineCoord.x)@(n*timeIncr + selGridLineCoord.y).round(timeIncr))
 			};
 			// calculate new remNumGridLines (i.e. nr. of vertical grid lines to the left of a unit)
 			remNumGridLines = this.prCalcRemNumGridLines;
@@ -205,21 +207,22 @@ EnvScaleView {
 				// if the mouse cursor is not on a selected break point or a curve point, scale or translate the view
 
 				// translate view
-				selGridLineCoord.x = selGridLineCoord.x + dx;
+				this.prSelGridLineCoordX_(selGridLineCoord.x + dx);
 
 				// zoom in / out at currently selected grid line
 				(scaleRespCount == 0).if {
 
 					(dy < 0 and: { uI < (unitStep[\time].lastIndex - 1) } or: { dy > 0 and: { uI > 1 } }).if {
-						vhorzGridDist = vhorzGridDist - dy
+						this.prVhorzGridDist_(vhorzGridDist - dy)
 					};
 
 					(dy < 0).if {
 						// mouse is dragged up -> zoom in
 						(vhorzGridDist > maxHorzGridDist).if {
-							vhorzGridDist = minHorzGridDist;
+							this.prVhorzGridDist_(minHorzGridDist);
 							uI = uI + 1;
-							timeStep = unitStep[\time][uI];
+							//timeStep = unitStep[\time][uI];
+							this.prTimeStep_(unitStep[\time][uI]);
 							timeIncr = timeStep/numGridLinesPerUnit;
 							remNumGridLines = this.prCalcRemNumGridLines
 						}
@@ -227,13 +230,14 @@ EnvScaleView {
 					(dy > 0).if {
 						// mouse is dragged down -> zoom out
 						(vhorzGridDist < minHorzGridDist).if {
-							vhorzGridDist = maxHorzGridDist;
+							this.prVhorzGridDist_(maxHorzGridDist);
 							uI = uI - 1;
-							timeStep = unitStep[\time][uI];
+							//timeStep = unitStep[\time][uI];
+							this.prTimeStep_(unitStep[\time][uI]);
 							timeIncr = timeStep/numGridLinesPerUnit;
 							remNumGridLines = this.prCalcRemNumGridLines;
 							// quantize previous selected grid coordinate to nearest current selected grid coordinate
-							selGridLineCoord.y = (selGridLineCoord.y/timeStep).asInteger*timeStep + (remNumGridLines*timeIncr)
+							this.prSelGridLineCoordY_((selGridLineCoord.y/timeStep).asInteger*timeStep + (remNumGridLines*timeIncr))
 						}
 					}
 
@@ -242,13 +246,14 @@ EnvScaleView {
 				// lock left side of view to 0
 				(domainMode == \unipolar).if {
 					var currZeroPos = selGridLineCoord.x - ((selGridLineCoord.y/timeIncr).round(1).asInteger*vhorzGridDist);
-					(currZeroPos > 0).if { selGridLineCoord.x = selGridLineCoord.x - currZeroPos }
+					(currZeroPos > 0).if { this.prSelGridLineCoordX_(selGridLineCoord.x - currZeroPos) }
 				}
 			};
 
 			prevPoint = x@y;
 			scaleRespCount = scaleRespCount + 1;
 			(scaleRespCount >= scaleResponsiveness).if { scaleRespCount = 0 };
+			envData.height = me.bounds.height;   // update height var of env plot data in case user re-sized the view
 			me.refresh
 		});
 
@@ -258,9 +263,8 @@ EnvScaleView {
 				[[rangeView,rows:3]],
 				[nil,envView]
 			).hSpacing_(0).setColumnStretch(0,1).setColumnStretch(1,20).setRowStretch(0,5).setRowStretch(1,1).setRowStretch(2,74).setRowStretch(3,1)
-		);
+		)
 
-		this.env_(env,false)
 	}
 
 	background_ { arg newBackground,refreshFlag = true;
@@ -339,11 +343,13 @@ EnvScaleView {
 
 	minRange_ { arg newMinRange,refreshFlag = true;
 		minRange = newMinRange;
+		envData.minLevel = newMinRange;
 		refreshFlag.if { rangeView.refresh }
 	}
 
 	maxRange_ { arg newMaxRange,refreshFlag = true;
 		maxRange = newMaxRange;
+		envData.maxLevel = newMaxRange;
 		refreshFlag.if { rangeView.refresh }
 	}
 
@@ -354,7 +360,7 @@ EnvScaleView {
 	env_ { arg newEnv,refreshFlag = true;
 		newEnv.isKindOf(Env).if {
 			env = newEnv;
-			envData = EnvPlotData(env,timeStep,selGridLineCoord,envView.bounds.height,minRange,maxRange,numGridLinesPerUnit*vhorzGridDist);
+			envData = EnvPlotData(env);
 			refreshFlag.if { envView.refresh }
 		} {
 			Error("arg env has to be an instance of %\n".format(Env.name)).throw
@@ -364,6 +370,32 @@ EnvScaleView {
 	drawFunc_ { arg newDrawFunc,refreshFlag = true;
 		drawFunc = newDrawFunc;
 		refreshFlag.if { envView.refresh }
+	}
+
+	// private setters
+	prTimeStep_ { arg newTimeStep;
+		timeStep = newTimeStep;
+		envData.timeStep = newTimeStep
+	}
+
+	prSelGridLineCoord_ { arg newSelGridLineCoord;
+		selGridLineCoord = newSelGridLineCoord;
+		envData.refCoord = newSelGridLineCoord
+	}
+
+	prSelGridLineCoordX_ { arg newSelGridLineCoordX;
+		selGridLineCoord.x = newSelGridLineCoordX;
+		envData.refCoord.x = newSelGridLineCoordX
+	}
+
+	prSelGridLineCoordY_ { arg newSelGridLineCoordY;
+		selGridLineCoord.y = newSelGridLineCoordY;
+		envData.refCoord.y = newSelGridLineCoordY
+	}
+
+	prVhorzGridDist_ { arg newVhorzGridDist;
+		vhorzGridDist = newVhorzGridDist;
+		envData.unitDist = newVhorzGridDist*numGridLinesPerUnit
 	}
 
 	// private methods
