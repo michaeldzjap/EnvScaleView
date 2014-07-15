@@ -44,6 +44,8 @@ EnvScaleView {
 		this.prSelGridLineCoord_(320@0.4);
 		remNumGridLines = 0;
 		this.prVhorzGridDist_(horzGridDist);
+		envData.height = 234;   // set height var to correct initial height of envView
+		envData.updateEnvPlotData;
 
 		// initialize axes vars
 		this.showHorzAxis_(true,false);
@@ -117,7 +119,7 @@ EnvScaleView {
 			Pen.font_(Font(font.name,font.size - 2));
 			Pen.fillColor = gridColor;
 			Pen.strokeColor = gridColor;
-			// INSERT #1
+
 			// draw vertical lines and units (avoid drawing lines and units outside bounds of the view)
 			selGridLineCoord.x.inRange(0,me.bounds.width).if {
 				// selGridLineCoord.x is in the visible part of the view
@@ -149,7 +151,54 @@ EnvScaleView {
 
 			Pen.stroke;
 
-			// INSERT #2
+			// first draw line segments
+			Pen.strokeColor = Color.grey(0.5); Pen.fillColor = Color.grey(1,0.5); Pen.width = 1;
+			Pen.moveTo(envData.breakPointCoords[0].x@(me.bounds.height + 1));
+			(1..envData.breakPointCoords.lastIndex) do: { |i|
+				lineResolution do: { |j|
+					var k = j/(lineResolution - 1),xpos;
+					xpos = envData.breakPointCoords[i - 1].x + (k*(envData.breakPointCoords[i].x - envData.breakPointCoords[i - 1].x));
+					xpos.inRange(vhorzGridDist.neg,me.bounds.width + vhorzGridDist).if {
+						Pen.lineTo(
+							xpos@(envData.breakPointCoords[i - 1].y + (env.curves[i - 1].asWarp.map(k)*(envData.breakPointCoords[i].y - envData.breakPointCoords[i - 1].y)))
+						)
+					}
+				}
+			};
+			Pen.lineTo(envData.breakPointCoords.last.x@(me.bounds.height + 1));
+			Pen.lineTo(0@(me.bounds.height + 1));
+			Pen.fillStroke;
+
+			// then draw breakpoints, curvepoints (if in visible part of the view)
+			Pen.strokeColor = Color.red;
+			envData.breakPointCoords do: { |breakPointCoord,i|
+				(i == loopStartNode or: { i == loopEndNode }).if {
+					Pen.width = 0.25;
+					Pen.moveTo(breakPointCoord.x@0);
+					Pen.lineTo(breakPointCoord.x@me.bounds.height);
+					(i == loopEndNode).if {
+						Pen.moveTo(breakPointCoord);
+						Pen.lineTo((envData.breakPointCoords[loopStartNode].x - 2.5)@breakPointCoord.y)
+					};
+					Pen.stroke
+				};
+
+				Pen.width = 0.5;
+				Pen.fillColor = (envData.selBreakPoint == i
+					or: { envData.selBreakPoint == 0 and: { i == envData.breakPointCoords.lastIndex } }
+					or: { envData.selBreakPoint == envData.breakPointCoords.lastIndex and: { i == 0 } }
+				).if { Color.red } { Color.white };
+
+				(breakPointCoord.x > vhorzGridDist.neg and: { breakPointCoord.x < (me.bounds.width + vhorzGridDist) }).if {
+					Pen.addRect(Rect(breakPointCoord.x - (breakPointSize/2),breakPointCoord.y - (breakPointSize/2),breakPointSize,breakPointSize));
+					(i > 0).if { Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi) }
+				};
+
+				(i > 0 and: { envData.curvePointCoords[i - 1].x.inRange(vhorzGridDist.neg,me.bounds.width + vhorzGridDist) }).if {
+					Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi)
+				};
+				Pen.fillStroke
+			}
 
 		}).keyDownAction_({ |me,char,mod,key,uni|
 			ctlKeyDown = mod.isCtrl
@@ -158,7 +207,6 @@ EnvScaleView {
 		}).mouseDownAction_({ |me,x,y,mod|
 			var n,lim = breakPointSize/2;
 
-			// INSERT #3
 			// calculate new selGridLineCoord
 			(x != selGridLineCoord.x).if {
 				n = ((x - selGridLineCoord.x)/vhorzGridDist).round(1);
@@ -167,9 +215,8 @@ EnvScaleView {
 			// calculate new remNumGridLines (i.e. nr. of vertical grid lines to the left of a unit)
 			remNumGridLines = this.prCalcRemNumGridLines;
 
-			[selGridLineCoord,remNumGridLines].postln;
+			//[selGridLineCoord,remNumGridLines].postln;
 
-			// INSERT #4
 			// check if position of mouse click is that of a break or curve point
 			onBreakPoint = false;
 			block { |break|
@@ -192,6 +239,18 @@ EnvScaleView {
 				}
 			};
 
+			(breakPointMode == \chained and: { onBreakPoint } and: { envData.selBreakPoint > 0 }).if {
+				/*
+				 * calculate difference between breakpoints starting from selected breakpoint,
+				 * so breakpoints to the right of the selected breakpoint can be shifted horizontally
+				 * relative to the position of itself
+				 */
+				dbreakPointXCoords = envData.breakPointCoords[envData.selBreakPoint..envData.breakPointCoords.lastIndex].performUnaryOp(\x).differentiate;
+				dbreakPointXCoords.removeAt(0);
+				initBreakPointTime = env.times[0..envData.selBreakPoint - 1].sum;
+				dinitBreakPointTime = env.times[envData.selBreakPoint - 1]
+			};
+
 			// INSERT #5
 
 			prevPoint = x@y;
@@ -199,60 +258,152 @@ EnvScaleView {
 		}).mouseMoveAction_({ |me,x,y,mod|
 			var dx = (x - prevPoint.x).clip(-10,10),dy = y - prevPoint.y,vleftNumGridLines,currZeroPos,breakPointLevel,breakPointTime,prevBreakPointTime,nextBreakPointTime;
 
-			// INSERT #6
 			onBreakPoint.if {
-			};
-			onCurvePoint.if {
-			} {
-				// if the mouse cursor is not on a selected break point or a curve point, scale or translate the view
+				breakPointLevel = y.linlin(0,me.bounds.height,maxRange,minRange);
 
-				// translate view
-				this.prSelGridLineCoordX_(selGridLineCoord.x + dx);
+				(envData.selBreakPoint == 0).if {
+					// first break point is only allowed to move up and down
+					env.setLevel(0,breakPointLevel);
+					envData.breakPointCoords[0].y = y.clip(0,me.bounds.height);
+					env.setLevel(env.levels.lastIndex,env.levels[0]);
+					envData.breakPointCoords[envData.breakPointCoords.lastIndex].y = envData.breakPointCoords[0].y;
 
-				// zoom in / out at currently selected grid line
-				(scaleRespCount == 0).if {
-
-					(dy < 0 and: { uI < (unitStep[\time].lastIndex - 1) } or: { dy > 0 and: { uI > 1 } }).if {
-						this.prVhorzGridDist_(vhorzGridDist - dy)
+					// adjust first and last curve points
+					envData.calcYCurvePoint(0);
+					envData.calcYCurvePoint(envData.curvePointCoords.lastIndex)
+				} {
+					// calculate absolute times of selected break point and the break point preceding it
+					breakPointTime = (x == selGridLineCoord.x).if {
+						selGridLineCoord.y
+					} {
+						(x - selGridLineCoord.x)*timeStep/(vhorzGridDist*numGridLinesPerUnit) + selGridLineCoord.y
 					};
+					prevBreakPointTime = env.times[0..envData.selBreakPoint - 2].sum;
 
-					(dy < 0).if {
-						// mouse is dragged up -> zoom in
-						(vhorzGridDist > maxHorzGridDist).if {
-							this.prVhorzGridDist_(minHorzGridDist);
-							uI = uI + 1;
-							//timeStep = unitStep[\time][uI];
-							this.prTimeStep_(unitStep[\time][uI]);
-							timeIncr = timeStep/numGridLinesPerUnit;
-							remNumGridLines = this.prCalcRemNumGridLines
-						}
-					};
-					(dy > 0).if {
-						// mouse is dragged down -> zoom out
-						(vhorzGridDist < minHorzGridDist).if {
-							this.prVhorzGridDist_(maxHorzGridDist);
-							uI = uI - 1;
-							//timeStep = unitStep[\time][uI];
-							this.prTimeStep_(unitStep[\time][uI]);
-							timeIncr = timeStep/numGridLinesPerUnit;
-							remNumGridLines = this.prCalcRemNumGridLines;
-							// quantize previous selected grid coordinate to nearest current selected grid coordinate
-							this.prSelGridLineCoordY_((selGridLineCoord.y/timeStep).asInteger*timeStep + (remNumGridLines*timeIncr))
+					/*
+					 * if selected break point is the last, allow it to move up, down and to the right freely
+					 * but not past preceding break point and also move first break point up and down
+					 */
+					(envData.selBreakPoint == env.levels.lastIndex).if {
+						env.setLevel(envData.selBreakPoint,breakPointLevel);
+						breakPointTime = breakPointTime.max(prevBreakPointTime);
+						env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
+						envData.breakPointCoords[envData.selBreakPoint] = x.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height);
+						env.setLevel(0,breakPointLevel);
+						envData.breakPointCoords[0].y = y.clip(0,me.bounds.height);
+
+						// adjust first and last curve points
+						envData.calcYCurvePoint(0);
+						envData.calcXCurvePoint(envData.curvePointCoords.lastIndex);
+						envData.calcYCurvePoint(envData.curvePointCoords.lastIndex)
+					} {
+						(envData.breakPointCoords[envData.selBreakPoint].x <= envData.breakPointCoords[envData.selBreakPoint - 1].x).if {
+							/*
+							 * if x-coordinate of selected break point is equal to the x-coordinate of the preceding break point,
+							 * allow it to move up and down but not past preceding break point
+							 */
+							env.setLevel(envData.selBreakPoint,breakPointLevel);
+							breakPointTime = breakPointTime.max(prevBreakPointTime);
+							env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
+							envData.breakPointCoords[envData.selBreakPoint] = x.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height)
+						} {
+							/*
+							 * if the x-coordinate of the break point is equal to the x-coordinate of the next break point,
+							 * allow it to move up and down but not past the next break point when in loose mode
+							 */
+							(breakPointMode == \loose and: { envData.breakPointCoords[envData.selBreakPoint].x >= envData.breakPointCoords[envData.selBreakPoint + 1].x }).if {
+								env.setLevel(envData.selBreakPoint,breakPointLevel);
+								nextBreakPointTime = env.times[0..envData.selBreakPoint].sum;
+								breakPointTime = breakPointTime.min(nextBreakPointTime);
+								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
+								envData.breakPointCoords[envData.selBreakPoint] = x.min(envData.breakPointCoords[envData.selBreakPoint + 1].x)@y.clip(0,me.bounds.height)
+							} {
+								// if none of the above conditions apply, we can move the break point to any position
+								env.setLevel(envData.selBreakPoint,breakPointLevel);
+								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
+								envData.breakPointCoords[envData.selBreakPoint] = x@y.clip(0,me.bounds.height);
+
+								// adjust curve points to the left and right of the break point
+								envData.calcXCurvePoint(envData.selBreakPoint - 1);
+								envData.calcYCurvePoint(envData.selBreakPoint - 1);
+								envData.calcXCurvePoint(envData.selBreakPoint);
+								envData.calcYCurvePoint(envData.selBreakPoint)
+							};
+
+							/*
+							 * if in chained break point mode, shift all break points and curve points to the right of
+							 * the selected break point an equal amount in the horizontal direction
+							 */
+							(breakPointMode == \chained).if {
+								env.setTime(envData.selBreakPoint - 1,(dinitBreakPointTime + breakPointTime - initBreakPointTime).max(0));
+								(envData.selBreakPoint + 1..envData.breakPointCoords.lastIndex) do: { |i,j|
+									envData.breakPointCoords[i].x = envData.breakPointCoords[i - 1].x + dbreakPointXCoords[j];
+									(j > 0).if {
+										envData.curvePointCoords[i - 1].x = (envData.breakPointCoords[i - 1].x + envData.breakPointCoords[i].x)/2
+									}
+								}
+							}
 						}
 					}
-
-				};
-
-				// lock left side of view to 0
-				(domainMode == \unipolar).if {
-					var currZeroPos = selGridLineCoord.x - ((selGridLineCoord.y/timeIncr).round(1).asInteger*vhorzGridDist);
-					(currZeroPos > 0).if { this.prSelGridLineCoordX_(selGridLineCoord.x - currZeroPos) }
 				}
+			} {
+				onCurvePoint.if {
+					envData.calcYCurvePoint(envData.selBreakPoint - 1,dy)
+				} {
+					// if the mouse cursor is not on a selected break point or a curve point, scale or translate the view
+
+					// translate view
+					this.prSelGridLineCoordX_(selGridLineCoord.x + dx);
+
+					// zoom in / out at currently selected grid line
+					(scaleRespCount == 0).if {
+
+						(dy < 0 and: { uI < (unitStep[\time].lastIndex - 1) } or: { dy > 0 and: { uI > 1 } }).if {
+							this.prVhorzGridDist_(vhorzGridDist - dy)
+						};
+
+						(dy < 0).if {
+							// mouse is dragged up -> zoom in
+							(vhorzGridDist > maxHorzGridDist).if {
+								this.prVhorzGridDist_(minHorzGridDist);
+								uI = uI + 1;
+								//timeStep = unitStep[\time][uI];
+								this.prTimeStep_(unitStep[\time][uI]);
+								timeIncr = timeStep/numGridLinesPerUnit;
+								remNumGridLines = this.prCalcRemNumGridLines
+							}
+						};
+						(dy > 0).if {
+							// mouse is dragged down -> zoom out
+							(vhorzGridDist < minHorzGridDist).if {
+								this.prVhorzGridDist_(maxHorzGridDist);
+								uI = uI - 1;
+								//timeStep = unitStep[\time][uI];
+								this.prTimeStep_(unitStep[\time][uI]);
+								timeIncr = timeStep/numGridLinesPerUnit;
+								remNumGridLines = this.prCalcRemNumGridLines;
+								// quantize previous selected grid coordinate to nearest current selected grid coordinate
+								this.prSelGridLineCoordY_((selGridLineCoord.y/timeStep).asInteger*timeStep + (remNumGridLines*timeIncr))
+							}
+						}
+					};
+
+					// lock left side of view to 0
+					(domainMode == \unipolar).if {
+						var currZeroPos = selGridLineCoord.x - ((selGridLineCoord.y/timeIncr).round(1).asInteger*vhorzGridDist);
+						(currZeroPos > 0).if { this.prSelGridLineCoordX_(selGridLineCoord.x - currZeroPos) }
+					};
+
+					// rescale envelope when grid is rescaled
+					envData.updateEnvPlotData
+				}
+
 			};
 
 			prevPoint = x@y;
 			scaleRespCount = scaleRespCount + 1;
 			(scaleRespCount >= scaleResponsiveness).if { scaleRespCount = 0 };
+			// CHANGE: STORE PREVIOUS HEIGHT AND ONLY CHANGE ENVDATA HEIGHT AND UPDATE VERTICAL POSITION OF BREAK AND CURVE POINTS WHEN NECESSARY
 			envData.height = me.bounds.height;   // update height var of env plot data in case user re-sized the view
 			me.refresh
 		});
@@ -455,8 +606,8 @@ EnvPlotData {
 		this.minLevel = minLevel ? this.env.levels.minItem;
 		this.maxLevel = maxLevel ? this.env.levels.maxItem;
 		this.selBreakPoint = selBreakPoint ? 1;
-		this.updateAllBreakPointCoords;
-		this.updateAllCurvePointCoords;
+		/*this.updateAllBreakPointCoords;
+		this.updateAllCurvePointCoords;*/
 	}
 
 	updateAllBreakPointCoords {
@@ -479,6 +630,11 @@ EnvPlotData {
 			this.calcXCurvePoint(i);
 			this.calcYCurvePoint(i)
 		}
+	}
+
+	updateEnvPlotData {
+		this.updateAllBreakPointCoords;
+		this.updateAllCurvePointCoords
 	}
 
 	calcXCurvePoint { arg idx;
