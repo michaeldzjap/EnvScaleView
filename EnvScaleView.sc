@@ -44,8 +44,6 @@ EnvScaleView {
 		this.prSelGridLineCoord_(320@0.4);
 		remNumGridLines = 0;
 		this.prVhorzGridDist_(horzGridDist);
-		envData.height = 234;   // set height var to correct initial height of envView
-		envData.updateEnvPlotData;
 
 		// initialize axes vars
 		this.showHorzAxis_(true,false);
@@ -62,6 +60,9 @@ EnvScaleView {
 		this.minRange_(0,false);
 		this.maxRange_(1,false);
 		this.scaleResponsiveness_(3);
+
+		envData.height = 234;   // set height var to correct initial height of envView
+		envData.createEnvPlotData;
 
 		view = View(parent,bounds).resize_(5).background_(Color.white);
 
@@ -125,26 +126,22 @@ EnvScaleView {
 				// selGridLineCoord.x is in the visible part of the view
 				this.prDrawVertGridLinesRight(selGridLineCoord.copy,me.bounds,remNumGridLines);
 				this.prDrawVertGridLinesLeft(selGridLineCoord.copy - (vhorzGridDist@timeIncr),me.bounds,(remNumGridLines - 1).wrap(0,numGridLinesPerUnit - 1));
-			} { var rem,pos;
+			} { var rem,pos,i;
 				rem = remNumGridLines;
 				pos = selGridLineCoord.copy;
 				(selGridLineCoord.x < 0).if {
 					// selGridLineCoord.x is to the left of the visible part of the view
-					while({ pos.x < maxHorzGridDist.neg }) {
-						pos.x = pos.x + vhorzGridDist;
-						pos.y = pos.y + timeIncr;
-						rem = rem + 1;
-						(rem == numGridLinesPerUnit).if { rem = 0 }
-					};
+					i = ((maxHorzGridDist.neg - pos.x)/vhorzGridDist).round(1).asInteger;
+					pos.x = pos.x + (i*vhorzGridDist);
+					pos.y = pos.y + (i*timeIncr);
+					rem = (i + rem) % numGridLinesPerUnit;
 					this.prDrawVertGridLinesRight(pos,me.bounds,rem);
 				} {
 					// selGridLineCoord.x is to the right of the visible part of the view
-					while({ pos.x > (me.bounds.width + maxHorzGridDist) }) {
-						pos.x = pos.x - vhorzGridDist;
-						pos.y = pos.y - timeIncr;
-						rem = rem - 1;
-						(rem < 0).if { rem = numGridLinesPerUnit - 1 }
-					};
+					i = ((pos.x - me.bounds.width - maxHorzGridDist)/vhorzGridDist).round(1).asInteger;
+					pos.x = pos.x - (i*vhorzGridDist);
+					pos.y = pos.y - (i*timeIncr);
+					rem = (numGridLinesPerUnit - ((i - rem) % numGridLinesPerUnit)).wrap(0,numGridLinesPerUnit - 1);
 					this.prDrawVertGridLinesLeft(pos,me.bounds,rem);
 				}
 			};
@@ -156,29 +153,26 @@ EnvScaleView {
 			Pen.moveTo(envData.breakPointCoords[0].x@(me.bounds.height + 1));
 			(1..envData.breakPointCoords.lastIndex) do: { |i|
 				lineResolution do: { |j|
-					var k = j/(lineResolution - 1),xpos;
-					xpos = envData.breakPointCoords[i - 1].x + (k*(envData.breakPointCoords[i].x - envData.breakPointCoords[i - 1].x));
-					xpos.inRange(vhorzGridDist.neg,me.bounds.width + vhorzGridDist).if {
-						Pen.lineTo(
-							xpos@(envData.breakPointCoords[i - 1].y + (env.curves[i - 1].asWarp.map(k)*(envData.breakPointCoords[i].y - envData.breakPointCoords[i - 1].y)))
-						)
-					}
+					var k = j/(lineResolution - 1);
+					Pen.lineTo(
+						(envData.breakPointCoords[i - 1].x + (k*(envData.breakPointCoords[i].x - envData.breakPointCoords[i - 1].x)))@(envData.breakPointCoords[i - 1].y + (env.curves[i - 1].asWarp.map(k)*(envData.breakPointCoords[i].y - envData.breakPointCoords[i - 1].y)))
+					)
 				}
 			};
 			Pen.lineTo(envData.breakPointCoords.last.x@(me.bounds.height + 1));
-			Pen.lineTo(0@(me.bounds.height + 1));
+			Pen.lineTo(envData.breakPointCoords.first.x@(me.bounds.height + 1));
 			Pen.fillStroke;
 
 			// then draw breakpoints, curvepoints (if in visible part of the view)
 			Pen.strokeColor = Color.red;
-			envData.breakPointCoords do: { |breakPointCoord,i|
+			envData.breakPointCoords do: { |brPtCoord,i|
 				(i == loopStartNode or: { i == loopEndNode }).if {
 					Pen.width = 0.25;
-					Pen.moveTo(breakPointCoord.x@0);
-					Pen.lineTo(breakPointCoord.x@me.bounds.height);
+					Pen.moveTo(brPtCoord.x@0);
+					Pen.lineTo(brPtCoord.x@me.bounds.height);
 					(i == loopEndNode).if {
-						Pen.moveTo(breakPointCoord);
-						Pen.lineTo((envData.breakPointCoords[loopStartNode].x - 2.5)@breakPointCoord.y)
+						Pen.moveTo(brPtCoord);
+						Pen.lineTo((envData.breakPointCoords[loopStartNode].x - 2.5)@brPtCoord.y)
 					};
 					Pen.stroke
 				};
@@ -189,12 +183,12 @@ EnvScaleView {
 					or: { envData.selBreakPoint == envData.breakPointCoords.lastIndex and: { i == 0 } }
 				).if { Color.red } { Color.white };
 
-				(breakPointCoord.x > vhorzGridDist.neg and: { breakPointCoord.x < (me.bounds.width + vhorzGridDist) }).if {
-					Pen.addRect(Rect(breakPointCoord.x - (breakPointSize/2),breakPointCoord.y - (breakPointSize/2),breakPointSize,breakPointSize));
+				brPtCoord.x.inRange(maxHorzGridDist.neg,me.bounds.width + maxHorzGridDist).if {
+					Pen.addRect(Rect(brPtCoord.x - (breakPointSize/2),brPtCoord.y - (breakPointSize/2),breakPointSize,breakPointSize));
 					(i > 0).if { Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi) }
 				};
 
-				(i > 0 and: { envData.curvePointCoords[i - 1].x.inRange(vhorzGridDist.neg,me.bounds.width + vhorzGridDist) }).if {
+				(i > 0 and: { envData.curvePointCoords[i - 1].x.inRange(maxHorzGridDist.neg,me.bounds.width + maxHorzGridDist) }).if {
 					Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi)
 				};
 				Pen.fillStroke
@@ -367,7 +361,6 @@ EnvScaleView {
 							(vhorzGridDist > maxHorzGridDist).if {
 								this.prVhorzGridDist_(minHorzGridDist);
 								uI = uI + 1;
-								//timeStep = unitStep[\time][uI];
 								this.prTimeStep_(unitStep[\time][uI]);
 								timeIncr = timeStep/numGridLinesPerUnit;
 								remNumGridLines = this.prCalcRemNumGridLines
@@ -378,7 +371,6 @@ EnvScaleView {
 							(vhorzGridDist < minHorzGridDist).if {
 								this.prVhorzGridDist_(maxHorzGridDist);
 								uI = uI - 1;
-								//timeStep = unitStep[\time][uI];
 								this.prTimeStep_(unitStep[\time][uI]);
 								timeIncr = timeStep/numGridLinesPerUnit;
 								remNumGridLines = this.prCalcRemNumGridLines;
@@ -390,7 +382,7 @@ EnvScaleView {
 
 					// lock left side of view to 0
 					(domainMode == \unipolar).if {
-						var currZeroPos = selGridLineCoord.x - ((selGridLineCoord.y/timeIncr).round(1).asInteger*vhorzGridDist);
+						var currZeroPos = (selGridLineCoord.x - (selGridLineCoord.y/timeIncr*vhorzGridDist)).round(1);
 						(currZeroPos > 0).if { this.prSelGridLineCoordX_(selGridLineCoord.x - currZeroPos) }
 					};
 
@@ -610,7 +602,7 @@ EnvPlotData {
 		this.updateAllCurvePointCoords;*/
 	}
 
-	updateAllBreakPointCoords {
+	createAllBreakPointCoords {
 		var xc,yc;
 		yc = env.levels collect: _.linlin(minLevel,maxLevel,height,0);
 		xc = [0] ++ env.times.integrate collect: { |t|
@@ -623,13 +615,43 @@ EnvPlotData {
 		breakPointCoords = [xc,yc].flop collect: _.asPoint
 	}
 
-	updateAllCurvePointCoords {
-		var xc,yc;
+	updateAllBreakPointCoordsX {
+		[0] ++ env.times.integrate do: { |t,i|
+			breakPointCoords[i].x = (t == refCoord.y).if { refCoord.x } { refCoord.x - ((refCoord.y - t)/timeStep*unitDist).round(1) }
+		}
+	}
+
+	updateAllBreakPointCoordsY {
+		env.levels do: { |lvl,i|
+			breakPointCoords[i].y = lvl.linlin(minLevel,maxLevel,height,0)
+		}
+	}
+
+	updateAllBreakPointCoords {
+		[0] ++ env.times.integrate do: { |t,i|
+			breakPointCoords[i].x = (t == refCoord.y).if { refCoord.x } { refCoord.x - ((refCoord.y - t)/timeStep*unitDist).round(1) };
+			breakPointCoords[i].y = env.levels[i].linlin(minLevel,maxLevel,height,0)
+		}
+	}
+
+	createAllCurvePointCoords {
 		curvePointCoords = { Point() } ! (breakPointCoords.size - 1);
 		 (breakPointCoords.size - 1) do: { |i|
 			this.calcXCurvePoint(i);
 			this.calcYCurvePoint(i)
 		}
+	}
+
+	updateAllCurvePointCoords {
+		 (breakPointCoords.size - 1) do: { |i|
+			this.calcXCurvePoint(i);
+			this.calcYCurvePoint(i)
+		}
+	}
+
+	createEnvPlotData {
+		this.createAllBreakPointCoords;
+		this.createAllCurvePointCoords
 	}
 
 	updateEnvPlotData {
@@ -644,13 +666,11 @@ EnvPlotData {
 	calcYCurvePoint { arg idx,inc;
 		(breakPointCoords[idx + 1].y > breakPointCoords[idx].y).if {
 			inc.notNil.if {
-				//env.curves[idx] = (env.curves[idx] - (inc.sign*0.25)).clip(-18,18)
 				env.setCurve(idx,(env.curves[idx] - (inc.sign*0.25)).clip(-18,18))
 			};
 			curvePointCoords[idx].y = breakPointCoords[idx].y - (env.curves[idx].asWarp.map(0.5)*(breakPointCoords[idx].y - breakPointCoords[idx + 1].y))
 		} {
 			inc.notNil.if {
-				//env.curves[idx] = (env.curves[idx] + (inc.sign*0.25)).clip(-18,18)
 				env.setCurve(idx,(env.curves[idx] + (inc.sign*0.25)).clip(-18,18))
 			};
 			curvePointCoords[idx].y = breakPointCoords[idx + 1].y - (env.curves[idx].neg.asWarp.map(0.5)*(breakPointCoords[idx + 1].y - breakPointCoords[idx].y))
