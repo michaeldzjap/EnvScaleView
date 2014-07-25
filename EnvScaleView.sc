@@ -216,7 +216,6 @@ EnvScaleView {
 				dinitBreakPointTime = env.times[envData.selBreakPoint - 1]
 			};
 
-			// INSERT #5
 			ctlKeyDown.if {
 				onBreakPoint.if {
 					// delete break point except very first and don't delete any break points if there are only four left
@@ -242,8 +241,61 @@ EnvScaleView {
 						 */
 						(breakPointMode == \chained and: { envData.selBreakPoint < envData.breakPointCoords.lastIndex }).if {
 							dbreakPointXCoords.removeAt(0)
-						}
+						};
+
+						[envData.selBreakPoint,loopStartNode,loopEndNode].postln;
+
+						// shift loop nodes according to position of new break point
+						(envData.selBreakPoint == 1 and: { loopStartNode == 1 }).not.if {
+							(envData.selBreakPoint <= loopStartNode).if { loopStartNode = loopStartNode - 1 }
+						};
+						(loopEndNode - loopStartNode > 1).if {
+							(envData.selBreakPoint <= loopEndNode).if { loopEndNode = loopEndNode - 1 }
+						};
+
+						[envData.selBreakPoint,loopStartNode,loopEndNode].postln;
 					}
+				} { var insertInd,breakPointCoordX,breakPointTime;
+					#breakPointCoordX,breakPointTime = switch(unitMode,
+						\time, { (x@((x - selGridLineCoord.x)*timeStep/(vhorzGridDist*numGridLinesPerUnit) + selGridLineCoord.y)).asArray },
+						\tempo, { this.prFindNearestGridCoord(x).asArray }
+					);
+
+					// insert break point and associated curve point and select it
+					insertInd = envData.breakPointCoords.performUnaryOp(\x).indexOfGreaterThan(breakPointCoordX) ? envData.breakPointCoords.size;
+					env.levels = env.levels.insert(insertInd,y.linlin(0,me.bounds.height,maxRange,minRange));
+					env.times = (insertInd == 1).if {
+						env.times.insert(0,breakPointTime)
+					} {
+						env.times.insert(insertInd - 1,breakPointTime - env.times[0..insertInd - 2].sum)
+					};
+					(insertInd < env.times.lastIndex).if {
+						env.setTime(insertInd,env.times[insertInd] - env.times[insertInd - 1])
+					};
+					envData.breakPointCoords = envData.breakPointCoords.insert(insertInd,breakPointCoordX@y);
+					envData.curvePointCoords = envData.curvePointCoords.insert(insertInd - 1,(envData.breakPointCoords[insertInd] + envData.breakPointCoords[insertInd - 1])/2);
+					env.curves = env.curves.insert(insertInd - 1,0);
+					(insertInd < envData.breakPointCoords.lastIndex).if {
+						envData.calcXCurvePoint(insertInd);
+						envData.calcYCurvePoint(insertInd)
+					};
+
+					// if inserted break point is the last, update break and curve point data for first break point
+					(insertInd == env.levels.lastIndex).if {
+						env.setLevel(0,env.levels[insertInd]);
+						envData.breakPointCoords[0].y = envData.breakPointCoords[insertInd].y;
+						envData.calcYCurvePoint(0)
+					};
+
+					// if in chained mode recalculate break point distance
+					dbreakPointXCoords = envData.breakPointCoords[insertInd..envData.breakPointCoords.lastIndex].performUnaryOp(\x).differentiate;
+					dbreakPointXCoords.removeAt(0);
+
+					// shift loop nodes according to position of new break point
+					(insertInd <= loopStartNode).if { loopStartNode = loopStartNode + 1 };
+					(insertInd <= loopEndNode).if { loopEndNode = loopEndNode + 1 };
+
+					envData.selBreakPoint = insertInd
 				}
 			};
 
@@ -290,50 +342,54 @@ EnvScaleView {
 						envData.calcXCurvePoint(envData.curvePointCoords.lastIndex);
 						envData.calcYCurvePoint(envData.curvePointCoords.lastIndex)
 					} {
-						(envData.breakPointCoords[envData.selBreakPoint].x <= envData.breakPointCoords[envData.selBreakPoint - 1].x).if {
+						(envData.breakPointCoords[envData.selBreakPoint].x > envData.breakPointCoords[envData.selBreakPoint - 1].x and:
+							{ envData.breakPointCoords[envData.selBreakPoint].x < envData.breakPointCoords[envData.selBreakPoint + 1].x }).if {
 							/*
-							 * if x-coordinate of selected break point is equal to the x-coordinate of the preceding break point,
-							 * allow it to move up and down but not past preceding break point
+							 * if x-coordinate of break point is in between the x-coordinate of preceding break point
+							 * and that of the next break point we can move the break point to any position
 							 */
 							env.setLevel(envData.selBreakPoint,breakPointLevel);
-							breakPointTime = breakPointTime.max(prevBreakPointTime);
 							env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-							envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height)
+							envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@y.clip(0,me.bounds.height)
 						} {
-							/*
-							 * if the x-coordinate of the break point is equal to the x-coordinate of the next break point,
-							 * allow it to move up and down but not past the next break point when in loose mode
-							 */
-							(breakPointMode == \loose and: { envData.breakPointCoords[envData.selBreakPoint].x >= envData.breakPointCoords[envData.selBreakPoint + 1].x }).if {
+							(envData.breakPointCoords[envData.selBreakPoint].x <= envData.breakPointCoords[envData.selBreakPoint - 1].x).if {
+								/*
+							   	 * if x-coordinate of selected break point is equal to the x-coordinate of the preceding break point,
+							 	 * allow it to move up and down but not past preceding break point
+							 	 */
+								env.setLevel(envData.selBreakPoint,breakPointLevel);
+								breakPointTime = breakPointTime.max(prevBreakPointTime);
+								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
+								envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height)
+							} {
+								/*
+								 * if the x-coordinate of the break point is equal to the x-coordinate of the next break point,
+								 * allow it to move up and down but not past the next break point when in loose mode
+								 */
 								env.setLevel(envData.selBreakPoint,breakPointLevel);
 								nextBreakPointTime = env.times[0..envData.selBreakPoint].sum;
 								breakPointTime = breakPointTime.min(nextBreakPointTime);
 								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
 								envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.min(envData.breakPointCoords[envData.selBreakPoint + 1].x)@y.clip(0,me.bounds.height)
-							} {
-								// if none of the above conditions apply, we can move the break point to any position
-								env.setLevel(envData.selBreakPoint,breakPointLevel);
-								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-								envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@y.clip(0,me.bounds.height);
+							}
+						};
 
-								// adjust curve points to the left and right of the break point
-								envData.calcXCurvePoint(envData.selBreakPoint - 1);
-								envData.calcYCurvePoint(envData.selBreakPoint - 1);
-								envData.calcXCurvePoint(envData.selBreakPoint);
-								envData.calcYCurvePoint(envData.selBreakPoint)
-							};
+						// adjust curve points to the left and right of the break point
+						envData.calcXCurvePoint(envData.selBreakPoint - 1);
+						envData.calcYCurvePoint(envData.selBreakPoint - 1);
+						envData.calcXCurvePoint(envData.selBreakPoint);
+						envData.calcYCurvePoint(envData.selBreakPoint);
 
-							/*
-							 * if in chained break point mode, shift all break points and curve points to the right of
-							 * the selected break point an equal amount in the horizontal direction
-							 */
-							(breakPointMode == \chained).if {
-								env.setTime(envData.selBreakPoint - 1,(dinitBreakPointTime + breakPointTime - initBreakPointTime).max(0));
-								(envData.selBreakPoint + 1..envData.breakPointCoords.lastIndex) do: { |i,j|
-									envData.breakPointCoords[i].x = envData.breakPointCoords[i - 1].x + dbreakPointXCoords[j];
-									(j > 0).if {
-										envData.curvePointCoords[i - 1].x = (envData.breakPointCoords[i - 1].x + envData.breakPointCoords[i].x)/2
-									}
+						/*
+						 * if in chained break point mode, shift all break points and curve points to the right of
+						 * the selected break point an equal amount in the horizontal direction
+						 */
+						(breakPointMode == \chained).if {
+							env.setTime(envData.selBreakPoint - 1,(dinitBreakPointTime + breakPointTime - initBreakPointTime).max(0));
+							(envData.selBreakPoint + 1..envData.breakPointCoords.lastIndex) do: { |i,j|
+								envData.breakPointCoords[i].x = envData.breakPointCoords[i - 1].x + dbreakPointXCoords[j];
+								(j > 0).if {
+									envData.curvePointCoords[i - 1].x = (envData.breakPointCoords[i - 1].x + envData.breakPointCoords[i].x)/2
 								}
 							}
 						}
