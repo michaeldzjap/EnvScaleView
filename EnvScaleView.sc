@@ -219,21 +219,28 @@ EnvScaleView {
 			ctlKeyDown.if {
 				onBreakPoint.if {
 					// delete break point except very first and don't delete any break points if there are only four left
-					(envData.selBreakPoint != 0 and: { env.levels.size > 4 }).if { var tmp;
+					(envData.selBreakPoint != 0 and: { envData.breakPointCoords.size > 4 }).if { var tmp;
 
 						// remove break point and associated curve point
+						envData.breakPointCoords.removeAt(envData.selBreakPoint);
+						envData.curvePointCoords.removeAt(envData.selBreakPoint - 1);
 						tmp = env.levels.copy;
 						tmp.removeAt(envData.selBreakPoint);
 						env.levels = tmp;
-						tmp = env.times.removeAt(envData.selBreakPoint - 1);
-						env.setTime(envData.selBreakPoint - 1,env.times[envData.selBreakPoint - 1] + tmp);
-						envData.breakPointCoords.removeAt(envData.selBreakPoint);
-						envData.curvePointCoords.removeAt(envData.selBreakPoint - 1);
 						tmp = env.curves.copy;
 						tmp.removeAt(envData.selBreakPoint - 1);
 						env.curves = tmp;
-						envData.calcXCurvePoint(envData.selBreakPoint - 1);
-						envData.calcYCurvePoint(envData.selBreakPoint - 1);
+						(envData.selBreakPoint - 1 == env.levels.lastIndex).if {
+							tmp = env.times.copy;
+							tmp.removeAt(envData.selBreakPoint - 1);
+							env.times = tmp;
+							envData.selBreakPoint = env.levels.lastIndex
+						} {
+							tmp = env.times.removeAt(envData.selBreakPoint - 1);
+							env.setTime(envData.selBreakPoint - 1,env.times[envData.selBreakPoint - 1] + tmp);
+							envData.calcXCurvePoint(envData.selBreakPoint - 1);
+							envData.calcYCurvePoint(envData.selBreakPoint - 1)
+						};
 
 						/*
 						 * delete break point distance of previous selected breakpoint to new selected break point in chained mode
@@ -243,17 +250,13 @@ EnvScaleView {
 							dbreakPointXCoords.removeAt(0)
 						};
 
-						[envData.selBreakPoint,loopStartNode,loopEndNode].postln;
-
 						// shift loop nodes according to position of new break point
 						(envData.selBreakPoint == 1 and: { loopStartNode == 1 }).not.if {
 							(envData.selBreakPoint <= loopStartNode).if { loopStartNode = loopStartNode - 1 }
 						};
 						(loopEndNode - loopStartNode > 1).if {
 							(envData.selBreakPoint <= loopEndNode).if { loopEndNode = loopEndNode - 1 }
-						};
-
-						[envData.selBreakPoint,loopStartNode,loopEndNode].postln;
+						}
 					}
 				} { var insertInd,breakPointCoordX,breakPointTime;
 					#breakPointCoordX,breakPointTime = switch(unitMode,
