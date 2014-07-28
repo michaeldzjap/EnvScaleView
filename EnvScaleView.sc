@@ -331,9 +331,21 @@ EnvScaleView {
 
 					brPtCurrNumbView.string_((envData.selBreakPoint + 1).asString);
 					brPtAbsTView.string_(this.prMakeStr(breakPointTime,3));
-					brPtRelTView.string_(this.prMakeStr(env.times[envData.selBreakPoint - 1],3));
-					brPtLevelView.string_(this.prMakeStr(env.levels[envData.selBreakPoint]));
-					crPtSlopeView.string_(env.curves[envData.selBreakPoint - 1]);
+					brPtRelTView.string_(
+						(envData.selBreakPoint > 0).if {
+							this.prMakeStr(env.times[envData.selBreakPoint - 1],3)
+						} {
+							"0.0"
+						}
+					);
+					brPtLevelView.string_(this.prMakeStr(env.levels[envData.selBreakPoint],3));
+					crPtSlopeView.string_(
+						(envData.selBreakPoint > 0).if {
+							env.curves[envData.selBreakPoint - 1]
+						} {
+							0
+						}
+					);
 					prevPoint = x@y;
 					me.refresh
 				}).mouseMoveAction_({ |me,x,y,mod|
@@ -351,7 +363,7 @@ EnvScaleView {
 
 							// adjust first and last curve points
 							envData.calcYCurvePoint(0);
-							envData.calcYCurvePoint(envData.curvePointCoords.lastIndex)
+							envData.calcYCurvePoint(envData.curvePointCoords.lastIndex);
 						} {
 							// calculate absolute times of selected break point and the break point preceding it
 							prevBreakPointTime = env.times[0..envData.selBreakPoint - 2].sum;
@@ -435,12 +447,24 @@ EnvScaleView {
 						};
 
 						brPtAbsTView.string_(this.prMakeStr(breakPointTime),3);
-						brPtRelTView.string_(this.prMakeStr(env.times[envData.selBreakPoint - 1],3));
-						brPtLevelView.string_(this.prMakeStr(env.levels[envData.selBreakPoint]))
+						brPtRelTView.string_(
+							(envData.selBreakPoint > 0).if {
+								this.prMakeStr(env.times[envData.selBreakPoint - 1],3)
+							} {
+								"0.0"
+							}
+						);
+						brPtLevelView.string_(this.prMakeStr(env.levels[envData.selBreakPoint],3))
 					} {
 						onCurvePoint.if {
 							envData.calcYCurvePoint(envData.selBreakPoint - 1,dy);
-							crPtSlopeView.string_(env.curves[envData.selBreakPoint - 1])
+							crPtSlopeView.string_(
+								(envData.selBreakPoint > 0).if {
+									env.curves[envData.selBreakPoint - 1]
+								} {
+									0
+								}
+							)
 						} {
 							// if the mouse cursor is not on a selected break point or a curve point, scale or translate the view
 
@@ -521,22 +545,26 @@ EnvScaleView {
 				GridLayout.rows([
 					StaticText().string_("Min Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(80).maxWidth_(80),
 					NumberBox().value_(minRange).action_({ arg number;
+						var oldMinRange = minRange;
 						(number.value > maxRange).if {
 							minRange = maxRange;
 							maxRange = number.value
 						};
 						minRange = number.value;
+						env.levels = env.levels.linlin(oldMinRange,maxRange,minRange,maxRange);
 						rangeView.refresh
 					}).minWidth_(40).maxWidth_(40).minHeight_(14).maxHeight_(14).align_(\right).font_(font),
 				]).margins_(0).hSpacing_(0),
 				GridLayout.rows([
 					StaticText().string_("Max Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(80).maxWidth_(80),
 					NumberBox().value_(maxRange).action_({ arg number;
+						var oldMaxRange = maxRange;
 						(number.value < minRange).if {
 							maxRange = minRange;
 							minRange = number.value
 						};
 						maxRange = number.value;
+						env.levels = env.levels.linlin(minRange,oldMaxRange,minRange,maxRange);
 						rangeView.refresh
 					}).minWidth_(40).maxWidth_(40).minHeight_(14).maxHeight_(14).align_(\right).font_(font)
 				]).margins_(0).hSpacing_(0),
