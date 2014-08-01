@@ -102,7 +102,7 @@ EnvScaleView {
 					Pen.strokeColor = gridColor;
 
 					// draw vertical lines and units (avoid drawing lines and units outside bounds of the view)
-					selGridLineCoord.x.inRange(0,me.bounds.width).if {
+					(selGridLineCoord.x >= 0 and: { selGridLineCoord.x <= me.bounds.width }).if {
 						// selGridLineCoord.x is in the visible part of the view
 						this.prDrawVertGridLinesRight(selGridLineCoord.copy,me.bounds,remNumGridLines);
 						this.prDrawVertGridLinesLeft(selGridLineCoord.copy - (vhorzGridDist@timeIncr),me.bounds,(remNumGridLines - 1).wrap(0,numGridLinesPerUnit - 1));
@@ -163,12 +163,14 @@ EnvScaleView {
 							or: { envData.selBreakPoint == envData.breakPointCoords.lastIndex and: { i == 0 } }
 						).if { Color.red } { Color.white };
 
-						brPtCoord.x.inRange(maxHorzGridDist.neg,me.bounds.width + maxHorzGridDist).if {
+						(brPtCoord.x >= maxHorzGridDist.neg and: { brPtCoord.x <= (me.bounds.width + maxHorzGridDist) }).if {
 							Pen.addRect(Rect(brPtCoord.x - (breakPointSize/2),brPtCoord.y - (breakPointSize/2),breakPointSize,breakPointSize));
 							(i > 0).if { Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi) }
 						};
 
-						(i > 0 and: { envData.curvePointCoords[i - 1].x.inRange(maxHorzGridDist.neg,me.bounds.width + maxHorzGridDist) }).if {
+						(i > 0 and: {
+							envData.curvePointCoords[i - 1].x >= maxHorzGridDist.neg and: { envData.curvePointCoords[i - 1].x <= (me.bounds.width + maxHorzGridDist) }
+						}).if {
 							Pen.addArc(envData.curvePointCoords[i - 1],curvePointRadius,0,2pi)
 						};
 						Pen.fillStroke
