@@ -57,7 +57,7 @@ EnvScaleView {
 		this.curvePointRadius_(2.5,false);
 
 		// initialize other vars
-		this.font_(Font("Courier",12),false);
+		this.font_(Font("Courier",10),false);
 		this.unitMode_(\time,false);
 		this.domainMode_(\unipolar,false);
 		this.minRange_(0,false);
@@ -97,7 +97,7 @@ EnvScaleView {
 					};
 					Pen.stroke;
 
-					Pen.font_(Font(font.name,font.size - 2));
+					Pen.font_(font);
 					Pen.fillColor = gridColor;
 					Pen.strokeColor = gridColor;
 
@@ -534,7 +534,7 @@ EnvScaleView {
 
 		rangeView = UserView(parent).background_(parent.notNil.if { parent.background } { nil }).resize_(5).drawFunc_({ |me|
 			var numUnits = numVertGridLines.div(2) + 1;
-			Pen.font_(Font(font.name,font.size - 2));
+			Pen.font_(font);
 			Pen.strokeColor = Color.black;
 			numUnits do: { |i|
 				Pen.stringAtPoint(this.prMakeStr(maxRange - ((maxRange - minRange)/(numUnits - 1)*i)),0@(i*vertGridDist*2 - 1))
@@ -545,7 +545,7 @@ EnvScaleView {
 		topSettingsView = View(parent).layout_(
 			HLayout(
 				GridLayout.rows([
-					StaticText().string_("Min Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(80).maxWidth_(80),
+					StaticText().string_("Min Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(65).maxWidth_(65),
 					NumberBox().value_(minRange).action_({ arg number;
 						var oldMinRange = minRange;
 						(number.value > maxRange).if {
@@ -553,12 +553,13 @@ EnvScaleView {
 							maxRange = number.value
 						};
 						minRange = number.value;
-						env.levels = env.levels.linlin(oldMinRange,maxRange,minRange,maxRange);
-						rangeView.refresh
+						envData.minLevel = minRange;
+						envData.updateAllBreakPointCoordsY; envData.updateAllCurvePointCoordsY;
+ 						rangeView.refresh; envView.refresh
 					}).minWidth_(40).maxWidth_(40).minHeight_(14).maxHeight_(14).align_(\right).font_(font),
 				]).margins_(0).hSpacing_(0),
 				GridLayout.rows([
-					StaticText().string_("Max Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(80).maxWidth_(80),
+					StaticText().string_("Max Range").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(65).maxWidth_(65),
 					NumberBox().value_(maxRange).action_({ arg number;
 						var oldMaxRange = maxRange;
 						(number.value < minRange).if {
@@ -566,13 +567,14 @@ EnvScaleView {
 							minRange = number.value
 						};
 						maxRange = number.value;
-						env.levels = env.levels.linlin(minRange,oldMaxRange,minRange,maxRange);
-						rangeView.refresh
+						envData.maxLevel = maxRange;
+						envData.updateAllBreakPointCoordsY; envData.updateAllCurvePointCoordsY;
+						rangeView.refresh; envView.refresh
 					}).minWidth_(40).maxWidth_(40).minHeight_(14).maxHeight_(14).align_(\right).font_(font)
 				]).margins_(0).hSpacing_(0),
 				nil,
 				GridLayout.rows([
-					StaticText().string_("Sus").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(30).maxWidth_(30),
+					StaticText().string_("Sus").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(25).maxWidth_(25),
 					loopStartNodeView = Button().states_([
 						["",Color.black,Color(171/255,184/255,189/255)],
 						["",Color.black,Color(255/255,215/255,127/255)]
@@ -584,7 +586,7 @@ EnvScaleView {
 					}).valueAction_(0).minWidth_(20).maxWidth_(20).minHeight_(14).maxHeight_(14)
 				]).margins_(0).hSpacing_(0),
 				GridLayout.rows([
-					StaticText().string_("Rel").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(30).maxWidth_(30),
+					StaticText().string_("Rel").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(25).maxWidth_(25),
 					loopEndNodeView = Button().states_([
 						["",Color.black,Color(171/255,184/255,189/255)],
 						["",Color.black,Color(255/255,215/255,127/255)]
@@ -596,7 +598,7 @@ EnvScaleView {
 					}).valueAction_(0).minWidth_(20).maxWidth_(20).minHeight_(14).maxHeight_(14)
 				]).margins_(0).hSpacing_(0),
 				GridLayout.rows([
-					StaticText().string_("Tempo Sync").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(80).maxWidth_(80),
+					StaticText().string_("Tempo Sync").font_(font).background_(gridBackgroundColor).align_(\center).minWidth_(70).maxWidth_(70),
 					Button().states_([
 						["",Color.black,Color(171/255,184/255,189/255)],
 						["",Color.black,Color(255/255,215/255,127/255)]
