@@ -21,7 +21,7 @@ EnvScaleView {
 	}
 
 	init { arg parent,bounds,env;
-		var prevPoint,brPtModeView,breakPointMode,ctlKeyDown = false,remNumGridLines,scaleCount = 0,scaleRespCount = 0,onBreakPoint,onCurvePoint,dbreakPointXCoords,initBreakPointTime,dinitBreakPointTime,prevHeight,prevPoint2,brPtNumbView,brPtCurrNumbView,brPtAbsTView,breakPointTime,brPtRelTView,brPtLevelView,crPtSlopeView,loopEndNodeView,loopStartNodeView;
+		var prevPoint,brPtModeView,breakPointMode,ctlKeyDown = false,remNumGridLines,scaleCount = 0,scaleRespCount = 0,onBreakPoint,onCurvePoint,dbreakPointXCoords,initBreakPointTime,dinitBreakPointTime,prevHeight,prevPoint2,brPtNumbView,brPtCurrNumbView,brPtAbsTView,breakPointTime,brPtRelTView,brPtLevelView,crPtSlopeView,loopEndNodeView,loopStartNodeView,distInit;
 
 		this.env_(env,false);
 
@@ -75,7 +75,7 @@ EnvScaleView {
 		envView = View().layout_(
 			VLayout(
 				4,
-				UserView(parent).background_(gridBackgroundColor).resize_(5).drawFunc_({ |me|
+				UserView().background_(gridBackgroundColor).resize_(5).drawFunc_({ |me|
 					var pos,lineResolution = 50;
 
 					// when the user resizes the envelope view, makes sure that all break and curve points get scaled proportionally in the vertical direction
@@ -181,7 +181,7 @@ EnvScaleView {
 				}).keyUpAction_({ |me,char,mod,key,uni|
 					ctlKeyDown = false
 				}).mouseDownAction_({ |me,x,y,mod|
-					var n,lim = breakPointSize/2;
+					var n,lim = breakPointSize*1.5;
 
 					// calculate new selGridLineCoord
 					(x != selGridLineCoord.x).if { this.prSelGridLineCoord_(this.prFindNearestGridCoord(x)) };
@@ -331,6 +331,9 @@ EnvScaleView {
 						}
 					};
 
+					// distance from mouse position to selected break point position
+					onBreakPoint.if { distInit = x@y - envData.breakPointCoords[envData.selBreakPoint] };
+
 					brPtCurrNumbView.string_((envData.selBreakPoint + 1).asString);
 					brPtAbsTView.string_(this.prMakeStr(breakPointTime,3));
 					brPtRelTView.string_(
@@ -351,15 +354,16 @@ EnvScaleView {
 					prevPoint = x@y;
 					me.refresh
 				}).mouseMoveAction_({ |me,x,y,mod|
-					var dx = (x - prevPoint.x).clip(-10,10),dy = y - prevPoint.y,vleftNumGridLines,currZeroPos,breakPointLevel,breakPointCoordX,prevBreakPointTime,nextBreakPointTime;
+					var dx = (x - prevPoint.x).clip(-10,10),dy = y - prevPoint.y,vleftNumGridLines,currZeroPos,breakPointLevel,breakPointCoordX,breakPointCoordY,prevBreakPointTime,nextBreakPointTime;
 
 					onBreakPoint.if {
-						breakPointLevel = y.linlin(0,me.bounds.height,maxRange,minRange);
+						breakPointCoordY = y - distInit.y;
+						breakPointLevel = breakPointCoordY.linlin(0,me.bounds.height,maxRange,minRange);
 
 						(envData.selBreakPoint == 0).if {
 							// first break point is only allowed to move up and down
 							env.setLevel(0,breakPointLevel);
-							envData.breakPointCoords[0].y = y.clip(0,me.bounds.height);
+							envData.breakPointCoords[0].y = breakPointCoordY.clip(0,me.bounds.height);
 							env.setLevel(env.levels.lastIndex,env.levels[0]);
 							envData.breakPointCoords[envData.breakPointCoords.lastIndex].y = envData.breakPointCoords[0].y;
 
@@ -370,7 +374,7 @@ EnvScaleView {
 							// calculate absolute times of selected break point and the break point preceding it
 							prevBreakPointTime = env.times[0..envData.selBreakPoint - 2].sum;
 							#breakPointCoordX,breakPointTime = switch(unitMode,
-								\time, { (x@this.prCalcTimeFromCoordX(x)).asArray },
+								\time, { ((x - distInit.x)@this.prCalcTimeFromCoordX(x - distInit.x)).asArray },
 								\tempo, { this.prFindNearestGridCoord(x).asArray }
 							);
 
@@ -382,9 +386,9 @@ EnvScaleView {
 								env.setLevel(envData.selBreakPoint,breakPointLevel);
 								breakPointTime = breakPointTime.max(prevBreakPointTime);
 								env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-								envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height);
+								envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@breakPointCoordY.clip(0,me.bounds.height);
 								env.setLevel(0,breakPointLevel);
-								envData.breakPointCoords[0].y = y.clip(0,me.bounds.height);
+								envData.breakPointCoords[0].y = breakPointCoordY.clip(0,me.bounds.height);
 
 								// adjust first and last curve points
 								envData.calcYCurvePoint(0);
@@ -399,7 +403,7 @@ EnvScaleView {
 									*/
 									env.setLevel(envData.selBreakPoint,breakPointLevel);
 									env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-									envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@y.clip(0,me.bounds.height)
+									envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@breakPointCoordY.clip(0,me.bounds.height)
 								} {
 									(envData.breakPointCoords[envData.selBreakPoint].x <= envData.breakPointCoords[envData.selBreakPoint - 1].x).if {
 										/*
@@ -409,7 +413,7 @@ EnvScaleView {
 										env.setLevel(envData.selBreakPoint,breakPointLevel);
 										breakPointTime = breakPointTime.max(prevBreakPointTime);
 										env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-										envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@y.clip(0,me.bounds.height)
+										envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX.max(envData.breakPointCoords[envData.selBreakPoint - 1].x)@breakPointCoordY.clip(0,me.bounds.height)
 									} {
 										/*
 										* if the x-coordinate of the break point is equal to the x-coordinate of the next break point,
@@ -422,7 +426,7 @@ EnvScaleView {
 											breakPointCoordX = breakPointCoordX.min(envData.breakPointCoords[envData.selBreakPoint + 1].x)
 										};
 										env.setTime(envData.selBreakPoint - 1,breakPointTime - prevBreakPointTime);
-										envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@y.clip(0,me.bounds.height)
+										envData.breakPointCoords[envData.selBreakPoint] = breakPointCoordX@breakPointCoordY.clip(0,me.bounds.height)
 									}
 								};
 
