@@ -1,5 +1,5 @@
 EnvScaleView {
-	var <view,<background,<font,<drawFunc,<horzGridDist,<maxHorzGridDist,<minHorzGridDist,numVertGridLines,<gridBackgroundColor,<gridColor,<gridWidth,<showHorzAxis,<showVertAxis,<breakPointSize,<curvePointRadius,<domainMode,<minRange,<maxRange,<unitMode,<scaleResponsiveness,<env,envData,envView,rangeView,topSettingsView,bottomSettingsView,numGridLinesPerUnit,vhorzGridDist,selGridLineCoord,loopStartNode,loopEndNode,timeIncr,timeStep,uI,breakPointCoords,curvePointCoords,<>selectedBreakPoint,breakPointTime,envGrid,envGridHeight,test;
+	var <view,<background,<font,<drawFunc,<horzGridDist,<maxHorzGridDist,<minHorzGridDist,numVertGridLines,<gridBackgroundColor,<gridColor,<gridWidth,<showHorzAxis,<showVertAxis,<breakPointSize,<curvePointRadius,<domainMode,<minRange,<maxRange,<unitMode,<scaleResponsiveness,<env,envData,envView,rangeView,topSettingsView,bottomSettingsView,numGridLinesPerUnit,vhorzGridDist,selGridLineCoord,loopStartNode,loopEndNode,timeIncr,timeStep,uI,breakPointCoords,curvePointCoords,<>selectedBreakPoint,breakPointTime,envGrid,envGridHeight;
 	classvar unitStep;
 
 	*initClass {
@@ -16,11 +16,10 @@ EnvScaleView {
 	*new { arg parent,bounds,env;
 		bounds = bounds ? (parent.notNil.if { parent.view.bounds } { nil } ? Rect(100,300,620,300));
 		env = env ? Env([0,1,1,0],[0,0.5,0],[0,0,0],nil,nil);
-		//env.curves.respondsTo(\at).not.if { env.curves = { env.curves } ! env.times.size };
 		^super.new.init(parent,bounds,env)
 	}
 
-	init { arg parent,bounds,env;
+	init { arg parent,bounds,argEnv;
 		var prevPoint,brPtModeView,breakPointMode,ctlKeyDown = false,remNumGridLines,scaleCount = 0,scaleRespCount = 0,onBreakPoint,onCurvePoint,dbreakPointXCoords,initBreakPointTime,dinitBreakPointTime,prevPoint2,brPtNumbView,brPtCurrNumbView,brPtAbsTView,brPtRelTView,brPtLevelView,crPtSlopeView,loopEndNodeView,loopStartNodeView,distInit;
 
 		this.selectedBreakPoint = 1;
@@ -48,6 +47,20 @@ EnvScaleView {
 		this.minRange_(0,false);
 		this.maxRange_(1,false);
 		this.scaleResponsiveness_(3);
+
+		uI = 8;
+		numGridLinesPerUnit = 8;
+		numVertGridLines = 20;
+		unitMode = \time;
+		timeStep = unitStep[\time][uI];
+		timeIncr = timeStep/numGridLinesPerUnit;
+		selGridLineCoord = ((0.4/timeIncr)*horzGridDist).asInteger@0.4;
+		remNumGridLines = 0;
+		vhorzGridDist = horzGridDist;
+		this.env_(argEnv,false);
+		breakPointMode = \slide;
+		loopStartNode = 1;
+		loopEndNode = 2;
 
 		view = View(parent,bounds).resize_(5).background_(Color.white);
 
@@ -164,8 +177,6 @@ EnvScaleView {
 					(x != selGridLineCoord.x).if { selGridLineCoord = this.prFindNearestGridCoord(x) };
 					// calculate new remNumGridLines (i.e. nr. of vertical grid lines to the left of a unit)
 					remNumGridLines = this.prCalcRemNumGridLines;
-
-					//[selGridLineCoord,remNumGridLines].postln;
 
 					// check if position of mouse click is that of a break or curve point
 					onBreakPoint = false;
@@ -663,26 +674,12 @@ EnvScaleView {
 		);
 
 		view.layout_(
-			test = GridLayout.rows(
+			GridLayout.rows(
 				[nil,topSettingsView],
 				[rangeView,envView],
 				[nil,bottomSettingsView]
 			).hSpacing_(0).vSpacing_(0).setColumnStretch(0,1).setColumnStretch(1,20).setRowStretch(0,1).setRowStretch(1,80).setRowStretch(2,1)
-		);
-
-		uI = 8;
-		numGridLinesPerUnit = 8;
-		numVertGridLines = 20;
-		unitMode = \time;
-		timeStep = unitStep[\time][uI];
-		timeIncr = timeStep/numGridLinesPerUnit;
-		selGridLineCoord = ((0.4/timeIncr)*horzGridDist).asInteger@0.4;
-		remNumGridLines = 0;
-		vhorzGridDist = horzGridDist;
-		this.env_(env,false);
-		breakPointMode = \slide;
-		loopStartNode = 1;
-		loopEndNode = 2
+		)
 
 	}
 
@@ -808,10 +805,7 @@ EnvScaleView {
 
 		// create curve point data
 		curvePointCoords = { Point() } ! (breakPointCoords.size - 1);
-		 (breakPointCoords.size - 1) do: { |i|
-			this.prCalcXCurvePoint(i);
-			this.prCalcYCurvePoint(i)
-		}
+		this.prUpdateAllCurvePointCoords
 	}
 
 	prUpdateAllBreakPointCoordsX {
