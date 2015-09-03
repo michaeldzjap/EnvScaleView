@@ -1,5 +1,5 @@
 EnvScaleView {
-	var <view,<background,<font,<drawFunc,<horzGridDist,<maxHorzGridDist,<minHorzGridDist,numVertGridLines,<gridBackgroundColor,<gridColor,<gridWidth,<showHorzAxis,<showVertAxis,<breakPointSize,<curvePointRadius,<domainMode,<minRange,<maxRange,<unitMode,<scaleResponsiveness,<env,envData,envView,rangeView,topSettingsView,bottomSettingsView,numGridLinesPerUnit,vhorzGridDist,selGridLineCoord,loopStartNode,loopEndNode,timeIncr,timeStep,uI,breakPointCoords,curvePointCoords,<>selectedBreakPoint,breakPointTime,envGrid,envGridHeight;
+	var <view,<background,<font,<drawFunc,<horzGridDist,<maxHorzGridDist,<minHorzGridDist,numVertGridLines,<gridBackgroundColor,<gridColor,<gridWidth,<showHorzAxis,<showVertAxis,<breakPointSize,<curvePointRadius,<domainMode,<minRange,<maxRange,<unitMode,<scaleResponsiveness,<env,envData,envView,rangeView,topSettingsView,bottomSettingsView,numGridLinesPerUnit,vhorzGridDist,selGridLineCoord,loopStartNode,loopEndNode,timeIncr,timeStep,uI,breakPointCoords,curvePointCoords,<>selectedBreakPoint,breakPointTime,envGrid,envGridHeight,<action;
 	classvar unitStep;
 
 	*initClass {
@@ -13,15 +13,14 @@ EnvScaleView {
 		])
 	}
 
-	*new { arg parent,bounds,env;
+	*new { arg parent,bounds,env,action;
 		bounds = bounds ? (parent.notNil.if { parent.view.bounds } { nil } ? Rect(100,300,620,300));
 		env = env ? Env([0,1,1,0],[0,0.5,0],[0,0,0],nil,nil);
-		^super.new.init(parent,bounds,env)
+		^super.new.init(parent,bounds,env,action)
 	}
 
-	init { arg parent,bounds,argEnv;
+	init { arg parent,bounds,argEnv,action;
 		var prevPoint,brPtModeView,breakPointMode,ctlKeyDown = false,remNumGridLines,scaleCount = 0,scaleRespCount = 0,onBreakPoint,onCurvePoint,dbreakPointXCoords,initBreakPointTime,dinitBreakPointTime,prevPoint2,brPtNumbView,brPtCurrNumbView,brPtAbsTView,brPtRelTView,brPtLevelView,crPtSlopeView,loopEndNodeView,loopStartNodeView,distInit;
-
 		this.selectedBreakPoint = 1;
 
 		// initialize grid vars
@@ -340,6 +339,7 @@ EnvScaleView {
 						}
 					);
 					prevPoint = x@y;
+					this.action.(env);
 					me.refresh
 				}).mouseMoveAction_({ |me,x,y,mod|
 					var dx = (x - prevPoint.x).clip(-10,10),dy = y - prevPoint.y,vleftNumGridLines,currZeroPos,breakPointLevel,breakPointCoordX,breakPointCoordY,prevBreakPointTime,nextBreakPointTime;
@@ -515,6 +515,7 @@ EnvScaleView {
 					scaleRespCount = scaleRespCount + 1;
 					(scaleRespCount >= scaleResponsiveness).if { scaleRespCount = 0 };
 					prevPoint = x@y;
+					this.action.(env);
 					me.refresh
 				}),
 				4
@@ -673,6 +674,8 @@ EnvScaleView {
 			).margins_(0)
 		);
 
+		this.action = action;
+
 		view.layout_(
 			GridLayout.rows(
 				[nil,topSettingsView],
@@ -680,7 +683,6 @@ EnvScaleView {
 				[nil,bottomSettingsView]
 			).hSpacing_(0).vSpacing_(0).setColumnStretch(0,1).setColumnStretch(1,20).setRowStretch(0,1).setRowStretch(1,80).setRowStretch(2,1)
 		)
-
 	}
 
 	background_ { arg newBackground,refreshFlag = true;
@@ -786,6 +788,10 @@ EnvScaleView {
 	drawFunc_ { arg newDrawFunc,refreshFlag = true;
 		drawFunc = newDrawFunc;
 		refreshFlag.if { envView.refresh }
+	}
+
+	action_ { arg newAction;
+		action = newAction;
 	}
 
 	// private methods
