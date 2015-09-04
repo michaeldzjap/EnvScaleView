@@ -675,6 +675,7 @@ EnvScaleView {
 		);
 
 		this.action = action;
+		envGridHeight = envGrid.bounds.height;
 
 		view.layout_(
 			GridLayout.rows(
@@ -811,7 +812,7 @@ EnvScaleView {
 
 		// create curve point data
 		curvePointCoords = { Point() } ! (breakPointCoords.size - 1);
-		this.prUpdateAllCurvePointCoords
+		this.prUpdateAllCurvePointCoords;
 	}
 
 	prUpdateAllBreakPointCoordsX {
@@ -842,7 +843,7 @@ EnvScaleView {
 	}
 
 	prUpdateAllCurvePointCoords {
-		 (breakPointCoords.size - 1) do: { |i|
+		(breakPointCoords.size - 1) do: { |i|
 			this.prCalcXCurvePoint(i);
 			this.prCalcYCurvePoint(i)
 		}
